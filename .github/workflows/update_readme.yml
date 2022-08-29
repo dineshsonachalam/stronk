@@ -3,7 +3,7 @@ name: Embed examples into README
 on:
   push:
     branches:    
-      - main
+      - '**'  # matches every branch
 
 jobs:
   auto-update-readme: 
