@@ -176,47 +176,91 @@ Credit to https://www.foonathan.net/2016/10/strong-typedefs/ for a great amount 
 
 ## Examples:
 
-### Specializers:
-In case you want to specialize the resulting type of unit multiplication and division you can utilize the `stronk/specializer.h` header.
+<!-- MARKDOWN-AUTO-DOCS:START (CODE:src=./examples/unit_example.cpp) -->
+<!-- The below code snippet is automatically added from ./examples/unit_example.cpp -->
+```cpp
+#include <iostream>
+#include <ratio>
 
-By default the units are generated with the `stronk_default_prefab` type.
+#include <stronk/stronk.h>
+#include <stronk/unit.h>
 
-```cpp :file=./examples/specializers_example.cpp:line_end=22
-#include <stronk/specializers.h>
-
-// Lets consider the following units:
-struct Distance : twig::stronk<Distance, double, twig::unit>
-{
-    using stronk::stronk;
-};
-
-struct Time : twig::stronk<Time, double, twig::unit>
-{
-    using stronk::stronk;
-};
-
-// Note: For the specializer macros you need to call them from within the twig namespace:
 namespace twig
 {
-// Lets say we want to have Distance / Time specialized to be hashable.
-// We can use the STRONK_SPECIALIZE_DIVIDE macro to specialize the generated type.
-STRONK_SPECIALIZE_DIVIDE(Distance, Time, can_hash);
-// Now any expression resulting the `Distance{} / Time{}` type will result in a unit type with the can_hash skill
+
+// First we define our stronk types:
+struct Distance : stronk<Distance, double, unit, can_equate_with_is_close, can_stream>
+{
+    using stronk::stronk;
+};
+
+struct Time : stronk<Time, int64_t, unit, can_equate, can_stream>
+{
+    using stronk::stronk;
+};
+
+struct Mass : stronk<Mass, int64_t, unit, can_equate, can_stream>
+{
+    using stronk::stronk;
+};
+
+// Some systems might want to create a stronk type for `Meters`, `Kilometers`, `LightYears`, etc. but we can also
+// utilize the std::ratio system to have a single type for `Distance`.
+struct Meters : std::ratio<1, 1>
+{
+    using base_unit_t = Distance;
+};
+
+struct Kilometers : std::kilo
+{
+    using base_unit_t = Distance;
+};
+
+struct Minutes : std::ratio<1'000'000'000ULL * 60, 1>
+{
+    using base_unit_t = Time;
+};
+
+struct Hours : std::ratio<1'000'000'000ULL * 60 * 60, 1>
+{
+    using base_unit_t = Time;
+};
+
+// The name of the generated type for `Distance` over `Time` is not really reader-friendly so making an alias can be
+// nice.
+using Speed = decltype(Distance {} / Time {});
+using Acceleration = decltype(Speed {} / Time {});
+using TimeSquared = decltype(Time {} * Time {});
+using Force = decltype(Mass {} * Acceleration {});
+
+// Now we have it all set up
+void example()
+{
+    Time two_hours = make<Hours>(2);
+    std::cout << two_hours.unwrap_as<Minutes>() << " should be " << 120 << std::endl;
+
+    Distance ten_km = make<Kilometers>(10.);
+    Time forty_minutes = make<Minutes>(40);
+
+    // Dividing different units will generate a new type (Distance/Time)
+    Speed fifteen_km_per_hour = ten_km / forty_minutes;
+    // And you get your original type out once there's only one type left
+    Distance distance_moved_over_2_hours_at_speed = two_hours * fifteen_km_per_hour;
+
+    // units can be multiplied and divided by IdentityUnits (values without units)
+    Distance thirty_km = make<Meters>(30.) * 1000;
+    std::cout << distance_moved_over_2_hours_at_speed << " should be " << thirty_km << std::endl;
+}
 
 }  // namespace twig
-```
 
-You can also specialize the underlying type of multiplying two units:
-By default the `underlying_type` is the default result of multiplying or dividing the underlying types of the two units themselves.
-
-```cpp :file=./examples/specializers_example.cpp:line_start=23:line_end=29
-// Lets specialize Time^2 to use int64_t as its underlying type.
-template<>
-struct twig::underlying_type_of_multiplying<Time, Time>
+auto main() -> int
 {
-    using type = int64_t;
-};
+    twig::example();
+    return 0;
+}
 ```
+<!-- MARKDOWN-AUTO-DOCS:END -->
 
 # Using Stronk in Your Project
 The project is CMake FetchContent ready and we are working on exposing it on vcpkg.
